@@ -1,0 +1,153 @@
+##########
+# General
+##########
+.DS_Store
+*.log
+*.tmp
+*.swp
+*.swo
+*.bak
+*.old
+*.out
+*.retry
+*.pyc
+__pycache__/
+.venv/
+venv/
+.env
+.env.*
+.idea/
+.vscode/
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+dist/
+build/
+tmp/
+logs/
+
+################
+# Git internals
+################
+.git/
+.gitignore~
+
+############
+# Kubernetes
+############
+# Local configs and overrides
+kubeconfig
+*.kubeconfig
+.kube/
+
+# Helm
+charts/**/charts/
+charts/**/tmp/
+charts/**/values.override.yaml
+*.tgz
+
+# Kustomize build output
+kustomize-build/
+
+# Generated manifests
+manifests/generated/
+manifests/out/
+
+###########
+# Terraform
+###########
+# Local Terraform state
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform/
+.terraform.lock.hcl
+
+# Terraform plan files
+*.tfplan
+
+######
+# Go
+######
+/bin/
+/cmd/*/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.prof
+*.pprof
+coverage.out
+
+# Go tool caches
+debug/
+
+##########
+# Python
+##########
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv*/
+venv*/
+ENV*/
+env.bak/
+venv.bak/
+
+# Django / Flask / other frameworks
+*.sqlite3
+db.sqlite3
+instance/
+
+# Jupyter
+.ipynb_checkpoints/
+
+###############
+# Tooling misc
+###############
+.terraform.tfstate.lock.info
+.localstack/
+localstack/
+.idea/
+.vscode/
+*.iml
+
+#####################
+# IDE / OS artefacts
+#####################
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.orig
