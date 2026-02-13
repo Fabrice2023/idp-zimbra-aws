@@ -1,0 +1,116 @@
+apiVersion: ec2.aws.upbound.io/v1beta1
+kind: VPC
+metadata:
+  name: zimbra-vpc
+spec:
+  deletionPolicy: Delete
+  providerConfigRef:
+    name: default
+  forProvider:
+    cidrBlock: "10.0.0.0/16"
+    enableDnsHostnames: true
+    enableDnsSupport: true
+    region: us-east-1
+    tags:
+      Name: zimbra-vpc
+      Environment: dev
+      ManagedBy: crossplane
+---
+apiVersion: ec2.aws.upbound.io/v1beta1
+kind: Subnet
+metadata:
+  name: zimbra-public-subnet
+spec:
+  deletionPolicy: Delete
+  providerConfigRef:
+    name: default
+  forProvider:
+    region: us-east-1
+    cidrBlock: "10.0.1.0/24"
+    availabilityZone: us-east-1a
+    mapPublicIpOnLaunch: true
+    vpcIdRef:
+      name: zimbra-vpc
+    tags:
+      Name: zimbra-public-subnet
+      Type: public
+---
+apiVersion: ec2.aws.upbound.io/v1beta1
+kind: Subnet
+metadata:
+  name: zimbra-private-subnet
+spec:
+  deletionPolicy: Delete
+  providerConfigRef:
+    name: default
+  forProvider:
+    region: us-east-1
+    cidrBlock: "10.0.2.0/24"
+    availabilityZone: us-east-1b
+    mapPublicIpOnLaunch: false
+    vpcIdRef:
+      name: zimbra-vpc
+    tags:
+      Name: zimbra-private-subnet
+      Type: private
+---
+apiVersion: ec2.aws.upbound.io/v1beta1
+kind: InternetGateway
+metadata:
+  name: zimbra-igw
+spec:
+  deletionPolicy: Delete
+  providerConfigRef:
+    name: default
+  forProvider:
+    region: us-east-1
+    vpcIdRef:
+      name: zimbra-vpc
+    tags:
+      Name: zimbra-igw
+---
+apiVersion: ec2.aws.upbound.io/v1beta1
+kind: RouteTable
+metadata:
+  name: zimbra-public-rt
+spec:
+  deletionPolicy: Delete
+  providerConfigRef:
+    name: default
+  forProvider:
+    region: us-east-1
+    vpcIdRef:
+      name: zimbra-vpc
+    tags:
+      Name: zimbra-public-route-table
+---
+apiVersion: ec2.aws.upbound.io/v1beta1
+kind: Route
+metadata:
+  name: zimbra-public-route
+spec:
+  deletionPolicy: Delete
+  providerConfigRef:
+    name: default
+  forProvider:
+    region: us-east-1
+    routeTableIdRef:
+      name: zimbra-public-rt
+    destinationCidrBlock: "0.0.0.0/0"
+    gatewayIdRef:
+      name: zimbra-igw
+---
+apiVersion: ec2.aws.upbound.io/v1beta1
+kind: RouteTableAssociation
+metadata:
+  name: zimbra-public-rt-association
+spec:
+  deletionPolicy: Delete
+  providerConfigRef:
+    name: default
+  forProvider:
+    region: us-east-1
+    routeTableIdRef:
+      name: zimbra-public-rt
+    subnetIdRef:
+      name: zimbra-public-subnet

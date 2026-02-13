@@ -10,17 +10,18 @@ spec:
       name: aws-creds
       key: creds
   
-  # Configuration LocalStack COMPLÈTE
   endpoint:
     url:
       type: Static
       static: http://172.17.0.1:4566
     services:
       - s3
+      - ec2      # ← AJOUTE
+      - rds      # ← AJOUTE
+      - iam      # ← AJOUTE
     hostnameImmutable: true
   
-  # FLAGS CRITIQUES pour LocalStack
-  s3_use_path_style: true  # ⭐ ESSENTIEL pour LocalStack
+  s3_use_path_style: true
   skip_credentials_validation: true
   skip_metadata_api_check: true
   skip_requesting_account_id: true

@@ -75,5 +75,3 @@ spec:
                   items:
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
-      subresources:
-        status: {}
