@@ -1,28 +1,27 @@
-apiVersion: aws.crossplane.io/v1beta1
+apiVersion: aws.upbound.io/v1beta1
 kind: ProviderConfig
 metadata:
-  name: aws-localstack
+  name: default
 spec:
-  # Use fake credentials from the Secret defined in aws-secrets.yaml
   credentials:
     source: Secret
     secretRef:
       namespace: crossplane-system
-      name: aws-localstack-creds
+      name: aws-creds
       key: creds
-
-  # Default region for LocalStack (can be arbitrary but must be consistent)
-  region: us-east-1
-
-  # Force all AWS SDK calls to go through the LocalStack endpoint.
-  # This is logically equivalent à “s3ForcePathStyle: true” and “disable acceleration”
-  # in standard AWS SDK configuration.
+  
+  # Configuration LocalStack COMPLÈTE
   endpoint:
     url:
       type: Static
-      static: "http://localhost:4566"
+      static: http://172.17.0.1:4566
+    services:
+      - s3
     hostnameImmutable: true
-
-  # Ensure S3 uses path-style addressing for LocalStack compatibility
-  s3UsePathStyle: true
-
+  
+  # FLAGS CRITIQUES pour LocalStack
+  s3_use_path_style: true  # ⭐ ESSENTIEL pour LocalStack
+  skip_credentials_validation: true
+  skip_metadata_api_check: true
+  skip_requesting_account_id: true
+  skip_region_validation: true

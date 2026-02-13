@@ -1,0 +1,79 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xzimbras.idp.example.com
+  labels:
+    platform: zimbra
+    managed-by: crossplane
+    api: xrd
+spec:
+  group: idp.example.com
+  names:
+    kind: XZimbra
+    plural: xzimbras
+  claimNames:
+    kind: Zimbra
+    plural: zimbras
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: API composite pour déployer une plateforme Zimbra complète (VPC, S3, RDS, EC2, IAM) via une seule ressource.
+          properties:
+            spec:
+              type: object
+              description: Paramètres de configuration de la plateforme Zimbra.
+              properties:
+                environment:
+                  type: string
+                  description: Environment type (affects sizing and configuration).
+                  enum:
+                    - dev
+                    - staging
+                    - prod
+                storageSizeGB:
+                  type: integer
+                  description: S3 storage quota in GB for Zimbra backups.
+                  minimum: 20
+                  maximum: 1000
+                  default: 50
+                databaseStorageGB:
+                  type: integer
+                  description: RDS storage size in GB for Zimbra metadata.
+                  minimum: 20
+                  maximum: 500
+                  default: 20
+                instanceType:
+                  type: string
+                  description: EC2 instance type for Zimbra server.
+                  enum:
+                    - t3.small
+                    - t3.medium
+                    - t3.large
+                    - t3.xlarge
+                  default: t3.medium
+                enableBackups:
+                  type: boolean
+                  description: Enable automated backups for S3 versioning and RDS snapshots.
+                  default: true
+                region:
+                  type: string
+                  description: AWS region for deployment.
+                  default: us-east-1
+              required:
+                - environment
+            status:
+              type: object
+              description: Statut observé de la plateforme Zimbra, incluant observedGeneration et conditions.
+              properties:
+                conditions:
+                  type: array
+                  description: Liste des conditions Crossplane reflétant l’état de santé et de synchronisation de la ressource.
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+      subresources:
+        status: {}

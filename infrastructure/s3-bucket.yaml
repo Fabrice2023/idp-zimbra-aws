@@ -1,10 +1,9 @@
 apiVersion: s3.aws.upbound.io/v1beta1
 kind: Bucket
 metadata:
-  name: zimbra-storage
+  name: zimbra-backup-storage # C'est ce nom qui sera utilisé pour le bucket
 spec:
   forProvider:
-    bucket: zimbra-storage
+    region: us-east-1
   providerConfigRef:
-    name: default
-
+    name: default # On fait bien référence au ProviderConfig créé juste avant
