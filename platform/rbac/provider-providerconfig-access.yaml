@@ -7,7 +7,11 @@ rules:
       - aws.upbound.io
     resources:
       - providerconfigs
+      - providerconfigusages  # ← AJOUTÉ
     verbs:
       - get
       - list
       - watch
+      - create      # ← AJOUTÉ pour créer les usages
+      - update      # ← AJOUTÉ
+      - patch       # ← AJOUTÉ
