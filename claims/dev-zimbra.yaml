@@ -1,0 +1,11 @@
+apiVersion: idp.example.com/v1alpha1
+kind: Zimbra
+metadata:
+  name: dev-zimbra-001
+spec:
+  environment: dev
+  region: us-east-1
+  storageSizeGB: 50
+  databaseStorageGB: 20
+  instanceType: t3.medium
+  enableBackups: true
