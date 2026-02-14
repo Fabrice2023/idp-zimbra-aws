@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: crossplane:provider:providerconfig-reader
+rules:
+  - apiGroups:
+      - aws.upbound.io
+    resources:
+      - providerconfigs
+    verbs:
+      - get
+      - list
+      - watch
