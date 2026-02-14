@@ -9,18 +9,16 @@ spec:
       namespace: crossplane-system
       name: aws-creds
       key: creds
-  
   endpoint:
     url:
       type: Static
       static: http://172.17.0.1:4566
     services:
       - s3
-      - ec2      # ← AJOUTE
-      - rds      # ← AJOUTE
-      - iam      # ← AJOUTE
+      - ec2
+      - rds
+      - iam
     hostnameImmutable: true
-  
   s3_use_path_style: true
   skip_credentials_validation: true
   skip_metadata_api_check: true
