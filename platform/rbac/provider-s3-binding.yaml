@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: provider-aws-s3-providerconfig
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: crossplane:provider:providerconfig-reader
+subjects:
+  - kind: ServiceAccount
+    name: provider-aws-s3-2b836f8bfc7d
+    namespace: crossplane-system
