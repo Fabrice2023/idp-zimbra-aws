@@ -9,6 +9,7 @@ spec:
   compositeTypeRef:
     apiVersion: idp.example.com/v1alpha1
     kind: XZimbra
+  mode: Resources
 
   resources:
     - name: zimbra-backup-bucket
@@ -18,7 +19,7 @@ spec:
         spec:
           deletionPolicy: Delete
           forProvider:
-            region: us-east-1 # Sera patché depuis le Claim
+            region: us-east-1
             tags: {}
           providerConfigRef:
             name: default
@@ -59,7 +60,7 @@ spec:
             cidrBlock: 10.0.0.0/16
             enableDnsHostnames: true
             enableDnsSupport: true
-            region: us-east-1 # Sera patché depuis le Claim
+            region: us-east-1
             tags: {}
           providerConfigRef:
             name: default
@@ -93,7 +94,7 @@ spec:
             cidrBlock: 10.0.1.0/24
             availabilityZone: us-east-1a
             mapPublicIpOnLaunch: true
-            region: us-east-1 # Sera patché depuis le Claim
+            region: us-east-1
             vpcIdSelector:
               matchControllerRef: true
             tags: {}
@@ -129,7 +130,7 @@ spec:
             cidrBlock: 10.0.2.0/24
             availabilityZone: us-east-1b
             mapPublicIpOnLaunch: false
-            region: us-east-1 # Sera patché depuis le Claim
+            region: us-east-1
             vpcIdSelector:
               matchControllerRef: true
             tags: {}
@@ -162,7 +163,7 @@ spec:
         spec:
           deletionPolicy: Delete
           forProvider:
-            region: us-east-1 # Sera patché depuis le Claim
+            region: us-east-1
             vpcIdSelector:
               matchControllerRef: true
             tags: {}
@@ -195,7 +196,7 @@ spec:
         spec:
           deletionPolicy: Delete
           forProvider:
-            region: us-east-1 # Sera patché depuis le Claim
+            region: us-east-1
             vpcIdSelector:
               matchControllerRef: true
             tags: {}
@@ -229,7 +230,7 @@ spec:
           deletionPolicy: Delete
           forProvider:
             destinationCidrBlock: 0.0.0.0/0
-            region: us-east-1 # Sera patché depuis le Claim
+            region: us-east-1
             routeTableIdSelector:
               matchControllerRef: true
             gatewayIdSelector:
@@ -264,7 +265,7 @@ spec:
         spec:
           deletionPolicy: Delete
           forProvider:
-            region: us-east-1 # Sera patché depuis le Claim
+            region: us-east-1
             routeTableIdSelector:
               matchControllerRef: true
             subnetIdSelector:

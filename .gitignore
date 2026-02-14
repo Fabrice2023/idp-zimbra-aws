@@ -151,3 +151,5 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 *.orig
+backup/
+*.yaml.bak
