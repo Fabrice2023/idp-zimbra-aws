@@ -293,3 +293,129 @@ spec:
           fromFieldPath: spec.environment
           toFieldPath: spec.forProvider.tags.Environment
 
+
+  
+    - name: zimbra-instance-role
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: Role
+        metadata:
+          labels:
+            app: zimbra
+        spec:
+          forProvider:
+            assumeRolePolicy: |
+              {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Service": "ec2.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                  }
+                ]
+              }
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-ec2-role"
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.environment
+          toFieldPath: metadata.labels.environment
+
+    - name: zimbra-s3-policy
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: Policy
+        metadata:
+          labels:
+            app: zimbra
+        spec:
+          forProvider:
+            policy: |
+              {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Action": [
+                      "s3:PutObject",
+                      "s3:GetObject",
+                      "s3:DeleteObject",
+                      "s3:ListBucket"
+                    ],
+                    "Resource": [
+                      "arn:aws:s3:::*-backup/*",
+                      "arn:aws:s3:::*-backup"
+                    ]
+                  }
+                ]
+              }
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-s3-policy"
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.environment
+          toFieldPath: metadata.labels.environment
+
+    - name: zimbra-s3-policy-attachment
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: RolePolicyAttachment
+        metadata:
+          labels:
+            app: zimbra
+        spec:
+          forProvider:
+            roleSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+            policyArnSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-s3-attach"
+
+    - name: zimbra-instance-profile
+      base:
+        apiVersion: iam.aws.upbound.io/v1beta1
+        kind: InstanceProfile
+        metadata:
+          labels:
+            app: zimbra
+        spec:
+          forProvider:
+            roleSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-instance-profile"
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.environment
+          toFieldPath: metadata.labels.environment
