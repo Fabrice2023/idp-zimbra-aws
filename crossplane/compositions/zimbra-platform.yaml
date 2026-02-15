@@ -419,3 +419,359 @@ spec:
         - type: FromCompositeFieldPath
           fromFieldPath: spec.environment
           toFieldPath: metadata.labels.environment
+
+    - name: zimbra-sg-ec2
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroup
+        metadata:
+          labels:
+            app: zimbra
+            tier: application
+        spec:
+          forProvider:
+            description: Security group for Zimbra EC2 instance
+            region: us-east-1
+            vpcIdSelector:
+              matchControllerRef: true
+            tags:
+              Name: zimbra-sg-ec2
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.tags.Name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-sg-ec2"
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.environment
+          toFieldPath: spec.forProvider.tags.Environment
+
+    # Règle Ingress : SSH (port 22)
+    - name: zimbra-sg-ec2-rule-ssh
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: ssh
+        spec:
+          forProvider:
+            type: ingress
+            fromPort: 22
+            toPort: 22
+            protocol: tcp
+            cidrBlocks:
+              - 0.0.0.0/0
+            description: SSH access
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # Règle Ingress : HTTP (port 80)
+    - name: zimbra-sg-ec2-rule-http
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: http
+        spec:
+          forProvider:
+            type: ingress
+            fromPort: 80
+            toPort: 80
+            protocol: tcp
+            cidrBlocks:
+              - 0.0.0.0/0
+            description: HTTP access for Zimbra webmail
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # Règle Ingress : HTTPS (port 443)
+    - name: zimbra-sg-ec2-rule-https
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: https
+        spec:
+          forProvider:
+            type: ingress
+            fromPort: 443
+            toPort: 443
+            protocol: tcp
+            cidrBlocks:
+              - 0.0.0.0/0
+            description: HTTPS access for Zimbra webmail
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # Règle Ingress : SMTP (port 25)
+    - name: zimbra-sg-ec2-rule-smtp
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: smtp
+        spec:
+          forProvider:
+            type: ingress
+            fromPort: 25
+            toPort: 25
+            protocol: tcp
+            cidrBlocks:
+              - 0.0.0.0/0
+            description: SMTP for email sending
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # Règle Ingress : SMTP TLS (port 587)
+    - name: zimbra-sg-ec2-rule-smtp-tls
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: smtp-tls
+        spec:
+          forProvider:
+            type: ingress
+            fromPort: 587
+            toPort: 587
+            protocol: tcp
+            cidrBlocks:
+              - 0.0.0.0/0
+            description: SMTP TLS for secure email sending
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # Règle Ingress : IMAP (port 143)
+    - name: zimbra-sg-ec2-rule-imap
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: imap
+        spec:
+          forProvider:
+            type: ingress
+            fromPort: 143
+            toPort: 143
+            protocol: tcp
+            cidrBlocks:
+              - 0.0.0.0/0
+            description: IMAP for email retrieval
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # Règle Ingress : IMAPS (port 993)
+    - name: zimbra-sg-ec2-rule-imaps
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: imaps
+        spec:
+          forProvider:
+            type: ingress
+            fromPort: 993
+            toPort: 993
+            protocol: tcp
+            cidrBlocks:
+              - 0.0.0.0/0
+            description: IMAPS for secure email retrieval
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # Règle Ingress : Zimbra Admin (port 7071)
+    - name: zimbra-sg-ec2-rule-admin
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: admin
+        spec:
+          forProvider:
+            type: ingress
+            fromPort: 7071
+            toPort: 7071
+            protocol: tcp
+            cidrBlocks:
+              - 0.0.0.0/0
+            description: Zimbra admin console
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # Règle Egress : ALL traffic (sortie)
+    - name: zimbra-sg-ec2-rule-egress
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: egress
+        spec:
+          forProvider:
+            type: egress
+            fromPort: 0
+            toPort: 0
+            protocol: "-1"
+            cidrBlocks:
+              - 0.0.0.0/0
+            description: Allow all outbound traffic
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # Security Group RDS
+    - name: zimbra-sg-rds
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroup
+        metadata:
+          labels:
+            app: zimbra
+            tier: database
+        spec:
+          forProvider:
+            description: Security group for Zimbra RDS MySQL
+            region: us-east-1
+            vpcIdSelector:
+              matchControllerRef: true
+            tags:
+              Name: zimbra-sg-rds
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.tags.Name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-sg-rds"
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.environment
+          toFieldPath: spec.forProvider.tags.Environment
+
+    # Règle Ingress RDS : MySQL depuis EC2 uniquement
+    - name: zimbra-sg-rds-rule-mysql
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: mysql
+        spec:
+          forProvider:
+            type: ingress
+            fromPort: 3306
+            toPort: 3306
+            protocol: tcp
+            description: MySQL access from EC2 instances only
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: database
+            sourceSecurityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
