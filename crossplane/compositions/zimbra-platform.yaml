@@ -712,6 +712,93 @@ spec:
           fromFieldPath: spec.region
           toFieldPath: spec.forProvider.region
 
+# Règle Ingress : POP3 (port 110)
+    - name: zimbra-sg-ec2-rule-pop3
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: pop3
+        spec:
+          forProvider:
+            type: ingress
+            fromPort: 110
+            toPort: 110
+            protocol: tcp
+            cidrBlocks:
+              - 0.0.0.0/0
+            description: POP3 for email retrieval
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # Règle Ingress : SMTPS (port 465)
+    - name: zimbra-sg-ec2-rule-smtps
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: smtps
+        spec:
+          forProvider:
+            type: ingress
+            fromPort: 465
+            toPort: 465
+            protocol: tcp
+            cidrBlocks:
+              - 0.0.0.0/0
+            description: SMTPS for secure email sending (legacy SSL)
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
+    # Règle Ingress : POP3S (port 995)
+    - name: zimbra-sg-ec2-rule-pop3s
+      base:
+        apiVersion: ec2.aws.upbound.io/v1beta1
+        kind: SecurityGroupRule
+        metadata:
+          labels:
+            app: zimbra
+            rule: pop3s
+        spec:
+          forProvider:
+            type: ingress
+            fromPort: 995
+            toPort: 995
+            protocol: tcp
+            cidrBlocks:
+              - 0.0.0.0/0
+            description: POP3S for secure email retrieval
+            region: us-east-1
+            securityGroupIdSelector:
+              matchControllerRef: true
+              matchLabels:
+                app: zimbra
+                tier: application
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.region
+          toFieldPath: spec.forProvider.region
+
     # Security Group RDS
     - name: zimbra-sg-rds
       base:
@@ -774,4 +861,4 @@ spec:
       patches:
         - type: FromCompositeFieldPath
           fromFieldPath: spec.region
-          toFieldPath: spec.forProvider.region
+          toFieldPath: spec.forProvider.region    

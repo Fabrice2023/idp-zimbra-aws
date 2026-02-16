@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: zimbra-mysql
+  namespace: default
+  labels:
+    app: zimbra-mysql
+spec:
+  ports:
+  - port: 3306
+    name: mysql
+  clusterIP: None
+  selector:
+    app: zimbra-mysql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: zimbra-mysql
+  namespace: default
+spec:
+  serviceName: zimbra-mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zimbra-mysql
+  template:
+    metadata:
+      labels:
+        app: zimbra-mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "Zimbra2026!SecurePass"
+        - name: MYSQL_DATABASE
+          value: "zimbra"
+        - name: MYSQL_USER
+          value: "admin"
+        - name: MYSQL_PASSWORD
+          value: "Zimbra2026!SecurePass"
+        ports:
+        - containerPort: 3306
+          name: mysql
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+        livenessProbe:
+          exec:
+            command:
+            - mysqladmin
+            - ping
+            - -h
+            - localhost
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - mysql
+            - -h
+            - localhost
+            - -u
+            - root
+            - -pZimbra2026!SecurePass
+            - -e
+            - "SELECT 1"
+          initialDelaySeconds: 10
+          periodSeconds: 5
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
