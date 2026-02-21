@@ -40,12 +40,12 @@ spec:
                   minimum: 20
                   maximum: 1000
                   default: 50
-                databaseStorageGB:
-                  type: integer
-                  description: RDS storage size in GB for Zimbra metadata.
-                  minimum: 20
-                  maximum: 500
-                  default: 20
+                #databaseStorageGB:
+                #  type: integer
+                #  description: RDS storage size in GB for Zimbra metadata.
+                #  minimum: 20
+                #  maximum: 500
+                #  default: 20
                 instanceType:
                   type: string
                   description: EC2 instance type for Zimbra server.

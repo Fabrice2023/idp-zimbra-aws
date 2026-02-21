@@ -1,0 +1,13 @@
+apiVersion: idp.example.com/v1alpha1
+kind: Zimbra
+metadata:
+  name: zimbra-poc-local
+  namespace: default
+spec:
+  environment: dev
+  storageSizeGB: 20
+  instanceType: t3.small
+  # La magie est ici : on force l'utilisation de la version légère
+  compositionSelector:
+    matchLabels:
+      env: local-kind

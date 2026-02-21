@@ -1,0 +1,100 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: zimbra-platform-local
+  labels:
+    platform: zimbra
+    env: local-kind
+spec:
+  compositeTypeRef:
+    apiVersion: idp.example.com/v1alpha1
+    kind: XZimbra
+  resources:
+    # --- RESSOURCE 1 : BUCKET S3 (LOCALSTACK) ---
+    - name: zimbra-backup-bucket
+      base:
+        apiVersion: s3.aws.upbound.io/v1beta1
+        kind: Bucket
+        spec:
+          forProvider:
+            region: us-east-1
+          providerConfigRef:
+            name: default
+      patches:
+        - fromFieldPath: metadata.name
+          toFieldPath: metadata.annotations[crossplane.io/external-name]
+          transforms: [{type: string, string: {fmt: "%s-backup"}}]
+
+    # --- RESSOURCE 2 : MYSQL STATEFULSET (K8S) ---
+    - name: zimbra-mysql-db
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        spec:
+          providerConfigRef:
+            name: kubernetes-config
+          forProvider:
+            manifest:
+              apiVersion: apps/v1
+              kind: StatefulSet
+              metadata:
+                namespace: default
+              spec:
+                serviceName: zimbra-mysql
+                replicas: 1
+                selector:
+                  matchLabels:
+                    app: zimbra-mysql
+                template:
+                  metadata:
+                    labels:
+                      app: zimbra-mysql
+                  spec:
+                    containers:
+                    - name: mysql
+                      image: mysql:8.0
+                      env:
+                      - name: MYSQL_ROOT_PASSWORD
+                        value: "ZimbraSecure2026"
+                      ports:
+                      - containerPort: 3306
+                        name: mysql
+      patches:
+        - fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.metadata.name
+          transforms: [{type: string, string: {fmt: "%s-mysql"}}]
+
+    # --- RESSOURCE 3 : UBUNTU SERVER (EC2 EMULATOR) ---
+    - name: zimbra-ubuntu-server # <--- CORRIGÉ : Ajout de 4 espaces ici
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        spec:
+          providerConfigRef:
+            name: kubernetes-config
+          forProvider:
+            manifest:
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                namespace: default
+              spec:
+                containers:
+                  - name: ubuntu
+                    image: ubuntu:22.04
+                    command: ["/bin/bash", "-c", "apt-get update && apt-get install -y mysql-client awscli && sleep infinity"]
+                    env:
+                      - name: MYSQL_HOST
+                        value: "zimbra-mysql"
+                      - name: AWS_ENDPOINT_URL
+                        value: "http://172.17.0.1:4566"
+                      - name: AWS_ACCESS_KEY_ID
+                        value: "test"
+                      - name: AWS_SECRET_ACCESS_KEY
+                        value: "test"
+                      - name: AWS_DEFAULT_REGION
+                        value: "us-east-1"
+      patches:
+        - fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.metadata.name
+          transforms: [{type: string, string: {fmt: "%s-server"}}]

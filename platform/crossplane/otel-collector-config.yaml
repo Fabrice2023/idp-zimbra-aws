@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: default
+data:
+  otel-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+      # Collecte les métriques système du Pod (CPU, RAM)
+      hostmetrics:
+        scrapers:
+          cpu:
+          memory:
+          network:
+          disk:
+      # Collecte les métriques de MySQL
+      mysql:
+        endpoint: "zimbra-mysql:3306"
+        username: "root"
+        password: "ZimbraSecure2026"
+
+    processors:
+      batch:
+      resourcedetection:
+        detectors: [env, system]
+
+    exporters:
+      otlp:
+        endpoint: "ingest.eu.signoz.cloud:443"
+        tls:
+          insecure: false
+        headers:
+          "signoz-access-token": "TON_INGESTION_TOKEN_ICI" # <--- Remplace par la valeur masquée sur ton image
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [otlp, hostmetrics, mysql]
+          processors: [batch, resourcedetection]
+          exporters: [otlp]

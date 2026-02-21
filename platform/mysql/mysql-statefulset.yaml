@@ -34,46 +34,25 @@ spec:
         image: mysql:8.0
         env:
         - name: MYSQL_ROOT_PASSWORD
-          value: "Zimbra2026!SecurePass"
+          value: "ZimbraSecure2026"
         - name: MYSQL_DATABASE
           value: "zimbra"
         - name: MYSQL_USER
           value: "admin"
         - name: MYSQL_PASSWORD
-          value: "Zimbra2026!SecurePass"
+          value: "ZimbraSecure2026"
         ports:
         - containerPort: 3306
           name: mysql
         volumeMounts:
         - name: mysql-data
           mountPath: /var/lib/mysql
-        livenessProbe:
-          exec:
-            command:
-            - mysqladmin
-            - ping
-            - -h
-            - localhost
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          exec:
-            command:
-            - mysql
-            - -h
-            - localhost
-            - -u
-            - root
-            - -pZimbra2026!SecurePass
-            - -e
-            - "SELECT 1"
-          initialDelaySeconds: 10
-          periodSeconds: 5
   volumeClaimTemplates:
   - metadata:
       name: mysql-data
     spec:
       accessModes: [ "ReadWriteOnce" ]
+      storageClassName: standard
       resources:
         requests:
-          storage: 10Gi
+          storage: 5Gi

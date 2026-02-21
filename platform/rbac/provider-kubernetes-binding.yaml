@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: provider-kubernetes-admin-binding
+subjects:
+  - kind: ServiceAccount
+    # Le nom est généré par Crossplane : provider-<nom-du-provider>-<id-aléatoire>
+    # On utilise souvent une étoile ou on cherche le nom exact
+    name: provider-kubernetes-a3cbbe355fa7
+    namespace: crossplane-system
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io

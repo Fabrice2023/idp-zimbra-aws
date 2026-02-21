@@ -88,6 +88,9 @@ spec:
       base:
         apiVersion: ec2.aws.upbound.io/v1beta1
         kind: Subnet
+        metadata:                    
+          labels:                    
+            subnet-type: public      
         spec:
           deletionPolicy: Delete
           forProvider:
@@ -861,4 +864,47 @@ spec:
       patches:
         - type: FromCompositeFieldPath
           fromFieldPath: spec.region
-          toFieldPath: spec.forProvider.region    
+          toFieldPath: spec.forProvider.region
+# ============================================
+    # EC2 EMULATOR (KUBERNETES POD)
+    # ============================================
+    - name: zimbra-ubuntu-emulator
+      base:
+        apiVersion: kubernetes.upbound.io/v1alpha1
+        kind: Object
+        spec:
+          forProvider:
+            manifest:
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                namespace: default
+                labels:
+                  app: zimbra
+                  tier: application
+              spec:
+                containers:
+                  - name: ubuntu-server
+                    image: ubuntu:22.04
+                    # Script pour garder le pod vivant et installer les outils de test
+                    command: ["/bin/bash", "-c"]
+                    args:
+                      - |
+                        apt-get update && apt-get install -y mysql-client curl iputils-ping dnsutils;
+                        echo "EC2 Emulator Ready";
+                        sleep infinity
+                    env:
+                      - name: MYSQL_HOST
+                        value: "zimbra-mysql"
+                    resources:
+                      requests:
+                        cpu: "250m"
+                        memory: "512Mi"
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "%s-ubuntu-server"

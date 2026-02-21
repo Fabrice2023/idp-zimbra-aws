@@ -6,6 +6,6 @@ spec:
   environment: dev
   region: us-east-1
   storageSizeGB: 50
-  databaseStorageGB: 20
+  #databaseStorageGB: 20
   instanceType: t3.medium
   enableBackups: true

@@ -13,14 +13,19 @@ spec:
     url:
       type: Static
       static: http://172.17.0.1:4566
-    services:
-      - s3
-      - ec2
-      - rds
-      - iam
+    services: [s3, ec2, rds, iam]
     hostnameImmutable: true
   s3_use_path_style: true
   skip_credentials_validation: true
   skip_metadata_api_check: true
   skip_requesting_account_id: true
   skip_region_validation: true
+
+---
+apiVersion: kubernetes.crossplane.io/v1alpha1 # <--- Changé de "upbound" à "crossplane"
+kind: ProviderConfig
+metadata:
+  name: kubernetes-config
+spec:
+  credentials:
+    source: InjectedIdentity # <--- Changé pour fonctionner dans ton cluster Kind # Utilise les droits natifs du Pod Crossplane pour piloter Kind
