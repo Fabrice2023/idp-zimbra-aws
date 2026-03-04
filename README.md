@@ -525,4 +525,4 @@ Ce projet a nécessité la résolution de multiples challenges :
 ### Sécurité & secrets (important)
 
 - Ne commite jamais de **credentials AWS réelles** ni de **tokens** (ex: SigNoz).
-- Pour l’OpenTelemetry Collector (`platform/crossplane/otel-collector-config.yaml`), le token doit être injecté via **Secret Kubernetes** (voir `QUICKSTART.md`).
+- Pour l’OpenTelemetry Collector (`platform/crossplane/otel-collector-config.yaml`), la **clé d’ingestion SigNoz** doit être injectée via **Secret Kubernetes** (voir `QUICKSTART.md`).

@@ -19,17 +19,28 @@ data:
           disk:
       mysql:
         collection_interval: 60s
-        endpoint: "zimbra-mysql:3306"
-        username: "root"
-        password: "ZimbraSecure2026"
+        endpoint: "${env:MYSQL_ENDPOINT}"
+        username: "${env:MYSQL_USERNAME}"
+        password: "${env:MYSQL_PASSWORD}"
       filelog:
         include: [ /var/log/*.log, /var/log/syslog ]
         start_at: end
 
     processors:
+      memory_limiter:
+        check_interval: 5s
+        limit_mib: 400
       batch:
       resourcedetection:
         detectors: [env, system]
+      resource:
+        attributes:
+          - key: service.name
+            value: idp-zimbra-local
+            action: upsert
+          - key: deployment.environment
+            value: local
+            action: upsert
 
     exporters:
       otlp:
@@ -37,19 +48,25 @@ data:
         tls:
           insecure: false
         headers:
-          "signoz-access-token": "${env:SIGNOZ_ACCESS_TOKEN}"
+          "signoz-ingestion-key": "${env:SIGNOZ_INGESTION_KEY}"
+        compression: gzip
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+        retry_on_failure:
+          enabled: true
 
     service:
       pipelines:
         metrics:
           receivers: [otlp, hostmetrics, mysql]
-          processors: [batch, resourcedetection]
+          processors: [memory_limiter, resourcedetection, resource, batch]
           exporters: [otlp]
         logs:
           receivers: [otlp, filelog]
-          processors: [batch, resourcedetection]
+          processors: [memory_limiter, resourcedetection, resource, batch]
           exporters: [otlp]
         traces:
           receivers: [otlp]
-          processors: [batch, resourcedetection]
+          processors: [memory_limiter, resourcedetection, resource, batch]
           exporters: [otlp]

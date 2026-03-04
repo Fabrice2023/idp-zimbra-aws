@@ -63,8 +63,47 @@ spec:
         - fromFieldPath: metadata.name
           toFieldPath: spec.forProvider.manifest.metadata.name
           transforms: [{type: string, string: {fmt: "%s-mysql"}}]
+        - fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.spec.serviceName
+          transforms: [{type: string, string: {fmt: "%s-mysql"}}]
+        - fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.spec.selector.matchLabels.app
+          transforms: [{type: string, string: {fmt: "%s-mysql"}}]
+        - fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.spec.template.metadata.labels.app
+          transforms: [{type: string, string: {fmt: "%s-mysql"}}]
 
-    # --- RESSOURCE 3 : UBUNTU SERVER (AVEC SIDECAR OTEL) ---
+    # --- RESSOURCE 3 : MYSQL SERVICE (K8S) ---
+    - name: zimbra-mysql-service
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        spec:
+          providerConfigRef:
+            name: kubernetes-config
+          forProvider:
+            manifest:
+              apiVersion: v1
+              kind: Service
+              metadata:
+                namespace: default
+              spec:
+                clusterIP: None
+                ports:
+                  - name: mysql
+                    port: 3306
+                    targetPort: 3306
+                selector:
+                  app: zimbra-mysql
+      patches:
+        - fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.metadata.name
+          transforms: [{type: string, string: {fmt: "%s-mysql"}}]
+        - fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.spec.selector.app
+          transforms: [{type: string, string: {fmt: "%s-mysql"}}]
+
+    # --- RESSOURCE 4 : UBUNTU SERVER (AVEC SIDECAR OTEL) ---
     - name: zimbra-ubuntu-server
       base:
         apiVersion: kubernetes.crossplane.io/v1alpha1
@@ -103,15 +142,20 @@ spec:
                   
                   # 2. Container Sidecar : OpenTelemetry Collector
                   - name: otel-collector
-                    image: otel/opentelemetry-collector-contrib:0.91.0
+                    image: otel/opentelemetry-collector-contrib:0.147.0
                     args: ["--config=/etc/otelcol/config.yaml"]
                     env:
-                      - name: SIGNOZ_ACCESS_TOKEN
+                      - name: SIGNOZ_INGESTION_KEY
                         valueFrom:
                           secretKeyRef:
-                            name: signoz-access-token
-                            key: token
-                            optional: true
+                            name: signoz-ingestion-key
+                            key: key
+                      - name: MYSQL_ENDPOINT
+                        value: "zimbra-mysql:3306"
+                      - name: MYSQL_USERNAME
+                        value: "root"
+                      - name: MYSQL_PASSWORD
+                        value: "ZimbraSecure2026"
                     volumeMounts:
                       - name: otel-config-vol
                         mountPath: /etc/otelcol/config.yaml
@@ -120,3 +164,9 @@ spec:
         - fromFieldPath: metadata.name
           toFieldPath: spec.forProvider.manifest.metadata.name
           transforms: [{type: string, string: {fmt: "%s-server"}}]
+        - fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.spec.containers[0].env[0].value
+          transforms: [{type: string, string: {fmt: "%s-mysql"}}]
+        - fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.spec.containers[1].env[1].value
+          transforms: [{type: string, string: {fmt: "%s-mysql:3306"}}]

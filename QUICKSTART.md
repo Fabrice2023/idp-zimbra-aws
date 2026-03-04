@@ -121,9 +121,10 @@ La composition locale peut lancer un sidecar **OpenTelemetry Collector**. Pour �
 # ConfigMap OTel (configuration collector)
 kubectl apply -f platform/crossplane/otel-collector-config.yaml
 
-# Secret avec le token SigNoz (namespace où tourne le Pod, ici default)
-kubectl create secret generic signoz-access-token -n default \
-  --from-literal=token='REPLACE_ME'
+# Secret avec la clé d’ingestion SigNoz Cloud (namespace où tourne le Pod, ici default)
+# NB: SigNoz Cloud utilise le header `signoz-ingestion-key` (l’ancien `signoz-access-token` est déprécié).
+kubectl create secret generic signoz-ingestion-key -n default \
+  --from-literal=key='REPLACE_ME'
 ```
 
 ## Vérification
