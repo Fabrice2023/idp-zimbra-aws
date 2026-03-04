@@ -9,6 +9,7 @@ docker --version
 kind version
 kubectl version --client
 helm version
+jq --version
 ```
 
 ## Installation en 5 Étapes
@@ -53,18 +54,19 @@ kubectl create secret generic aws-creds -n crossplane-system \
 aws_access_key_id = test
 aws_secret_access_key = test'
 
-# ProviderConfig + RBAC + CRD
+# ProviderConfig + RBAC
 kubectl apply -f platform/crossplane/provider-config.yaml
 kubectl apply -f platform/rbac/
 
-# XRD + Composition
+# XRD + Compositions (local + aws)
 kubectl apply -f crossplane/xrds/xzimbra.yaml
-kubectl apply -f crossplane/compositions/zimbra-platform.yaml
+kubectl apply -f crossplane/compositions/zimbra-platform-local.yaml
+kubectl apply -f crossplane/compositions/zimbra-platform-aws.yaml
 ```
 
 ## Premier Déploiement
 ```bash
-# Créer un claim
+# Local (Kind + LocalStack) : forcer la composition locale via label env=local-kind
 cat <<YAML | kubectl apply -f -
 apiVersion: idp.example.com/v1alpha1
 kind: Zimbra
@@ -72,13 +74,56 @@ metadata:
   name: test-zimbra
 spec:
   environment: dev
-  region: us-east-1
   storageSizeGB: 50
   instanceType: t3.medium
+  compositionSelector:
+    matchLabels:
+      env: local-kind
 YAML
 
 # Surveiller
 kubectl get zimbra,bucket,vpc -w
+```
+
+### Variante AWS réel
+
+Pour AWS réel, utilise la composition `zimbra-platform` et un `ProviderConfig` **sans endpoint LocalStack** (ce repo fournit `platform/crossplane/provider-config.yaml` orienté LocalStack).
+
+Dans ce repo, tu peux appliquer :
+
+```bash
+kubectl apply -f platform/crossplane/provider-config-aws.yaml
+```
+
+Exemple (sélection explicite par nom de composition) :
+
+```bash
+cat <<YAML | kubectl apply -f -
+apiVersion: idp.example.com/v1alpha1
+kind: Zimbra
+metadata:
+  name: test-zimbra-aws
+spec:
+  environment: dev
+  region: us-east-1
+  storageSizeGB: 50
+  instanceType: t3.medium
+  compositionRef:
+    name: zimbra-platform
+YAML
+```
+
+## OpenTelemetry / SigNoz (optionnel)
+
+La composition locale peut lancer un sidecar **OpenTelemetry Collector**. Pour éviter de commiter un token en clair, le token doit être injecté via un Secret.
+
+```bash
+# ConfigMap OTel (configuration collector)
+kubectl apply -f platform/crossplane/otel-collector-config.yaml
+
+# Secret avec le token SigNoz (namespace où tourne le Pod, ici default)
+kubectl create secret generic signoz-access-token -n default \
+  --from-literal=token='REPLACE_ME'
 ```
 
 ## Vérification
@@ -116,4 +161,4 @@ docker logs localstack
 ---
 
 **Temps total** : ~30 minutes  
-**Résultat** : Infrastructure S3 + VPC fonctionnelle automatiquement créée via un simple fichier YAML !
+**Résultat** : Infrastructure provisionnée via un simple fichier YAML (selon la composition choisie).

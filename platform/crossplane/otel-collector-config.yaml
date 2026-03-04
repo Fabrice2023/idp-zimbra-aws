@@ -10,18 +10,21 @@ data:
         protocols:
           grpc:
           http:
-      # Collecte les métriques système du Pod (CPU, RAM)
       hostmetrics:
+        collection_interval: 60s
         scrapers:
           cpu:
           memory:
           network:
           disk:
-      # Collecte les métriques de MySQL
       mysql:
+        collection_interval: 60s
         endpoint: "zimbra-mysql:3306"
         username: "root"
         password: "ZimbraSecure2026"
+      filelog:
+        include: [ /var/log/*.log, /var/log/syslog ]
+        start_at: end
 
     processors:
       batch:
@@ -34,11 +37,19 @@ data:
         tls:
           insecure: false
         headers:
-          "signoz-access-token": "TON_INGESTION_TOKEN_ICI" # <--- Remplace par la valeur masquée sur ton image
+          "signoz-access-token": "${env:SIGNOZ_ACCESS_TOKEN}"
 
     service:
       pipelines:
         metrics:
           receivers: [otlp, hostmetrics, mysql]
+          processors: [batch, resourcedetection]
+          exporters: [otlp]
+        logs:
+          receivers: [otlp, filelog]
+          processors: [batch, resourcedetection]
+          exporters: [otlp]
+        traces:
+          receivers: [otlp]
           processors: [batch, resourcedetection]
           exporters: [otlp]

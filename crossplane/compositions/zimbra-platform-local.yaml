@@ -64,8 +64,8 @@ spec:
           toFieldPath: spec.forProvider.manifest.metadata.name
           transforms: [{type: string, string: {fmt: "%s-mysql"}}]
 
-    # --- RESSOURCE 3 : UBUNTU SERVER (EC2 EMULATOR) ---
-    - name: zimbra-ubuntu-server # <--- CORRIGÉ : Ajout de 4 espaces ici
+    # --- RESSOURCE 3 : UBUNTU SERVER (AVEC SIDECAR OTEL) ---
+    - name: zimbra-ubuntu-server
       base:
         apiVersion: kubernetes.crossplane.io/v1alpha1
         kind: Object
@@ -79,7 +79,13 @@ spec:
               metadata:
                 namespace: default
               spec:
+                # 1. Déclaration du volume pour la configuration OTel
+                volumes:
+                  - name: otel-config-vol
+                    configMap:
+                      name: otel-collector-config
                 containers:
+                  # Container principal : Ubuntu
                   - name: ubuntu
                     image: ubuntu:22.04
                     command: ["/bin/bash", "-c", "apt-get update && apt-get install -y mysql-client awscli && sleep infinity"]
@@ -94,6 +100,22 @@ spec:
                         value: "test"
                       - name: AWS_DEFAULT_REGION
                         value: "us-east-1"
+                  
+                  # 2. Container Sidecar : OpenTelemetry Collector
+                  - name: otel-collector
+                    image: otel/opentelemetry-collector-contrib:0.91.0
+                    args: ["--config=/etc/otelcol/config.yaml"]
+                    env:
+                      - name: SIGNOZ_ACCESS_TOKEN
+                        valueFrom:
+                          secretKeyRef:
+                            name: signoz-access-token
+                            key: token
+                            optional: true
+                    volumeMounts:
+                      - name: otel-config-vol
+                        mountPath: /etc/otelcol/config.yaml
+                        subPath: otel-config.yaml
       patches:
         - fromFieldPath: metadata.name
           toFieldPath: spec.forProvider.manifest.metadata.name

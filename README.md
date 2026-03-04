@@ -2,6 +2,15 @@
 
 Une plateforme en libre-service permettant aux administrateurs Zimbra de déployer automatiquement une infrastructure AWS complète pour Zimbra Collaboration Suite.
 
+## ⚡ TL;DR
+
+Ce dépôt expose un **claim Kubernetes** `Zimbra` (API `idp.example.com/v1alpha1`) qui déclenche Crossplane pour provisionner une plateforme Zimbra via une **Composition**.
+
+- **Local (Kind + LocalStack)** : `crossplane/compositions/zimbra-platform-local.yaml`
+- **AWS réel** : `crossplane/compositions/zimbra-platform-aws.yaml`
+
+Guide rapide : `QUICKSTART.md`.
+
 ## 🎯 Vision du Projet
 
 **Objectif** : Transformer le déploiement d'infrastructure Zimbra de 2 semaines de travail manuel en **1 fichier YAML + 10 minutes d'attente**.
@@ -31,7 +40,25 @@ Une plateforme en libre-service permettant aux administrateurs Zimbra de déploy
 | **Crossplane** | v1.17.1 | Orchestrateur d'infrastructure |
 | **Kubernetes** | kind (local) | Plateforme de déploiement |
 | **LocalStack** | latest | Simulation AWS en local (test) |
-| **Providers AWS** | v1.15.0 | Gestion ressources S3, EC2, IAM, RDS |
+| **Providers Upbound AWS** | v1.x | Gestion ressources AWS (actuellement : S3/EC2/IAM) |
+| **Provider Kubernetes** | v0.x | Création d’objets Kubernetes (Pods/StatefulSets/ConfigMaps/Secrets) |
+
+### Concepts Crossplane utilisés
+
+- **XRD** : définit `XZimbra` + le claim `Zimbra` (`crossplane/xrds/xzimbra.yaml`)
+- **Compositions** :
+  - `zimbra-platform-local` (`crossplane/compositions/zimbra-platform-local.yaml`, label `env: local-kind`)
+  - `zimbra-platform` (`crossplane/compositions/zimbra-platform-aws.yaml`)
+
+### API (claim `Zimbra`)
+
+Champs principaux (voir `crossplane/xrds/xzimbra.yaml`) :
+
+- **`spec.environment`** : `dev|staging|prod`
+- **`spec.region`** : région AWS (défaut `us-east-1`)
+- **`spec.storageSizeGB`** : quota backups S3 (défaut 50)
+- **`spec.instanceType`** : gabarit EC2 visé (défaut `t3.medium`)
+- **`spec.enableBackups`** : active/désactive la logique “backups” (défaut `true`)
 
 ### Infrastructure Créée (Phase 1 - POC)
 ```
@@ -59,14 +86,21 @@ Une plateforme en libre-service permettant aux administrateurs Zimbra de déploy
 
 ### Ressources Actuellement Fonctionnelles
 
-- ✅ **VPC** avec DNS activé
-- ✅ **2 Subnets** (public + privé)
-- ✅ **Internet Gateway**
-- ✅ **Route Tables** configurées
-- ✅ **S3 Bucket** avec tags personnalisés
-- ⏳ **IAM Roles** (à venir)
-- ⏳ **RDS Database** (à venir)
-- ⏳ **EC2 Instance** (à venir)
+Cela dépend de la Composition sélectionnée :
+
+- **Local (`zimbra-platform-local`)** :
+  - ✅ S3 Bucket (via LocalStack)
+  - ✅ MySQL StatefulSet (Kubernetes)
+  - ✅ Pod Ubuntu “serveur” (Kubernetes) + sidecar OpenTelemetry Collector
+
+- **AWS (`zimbra-platform`)** :
+  - ✅ S3 Bucket
+  - ✅ VPC + subnets + IGW + route table (+ assoc)
+  - ✅ IAM Role + Policy + attachments + InstanceProfile (WIP pour une vraie instance EC2)
+  - ✅ Security Groups + règles (ports Zimbra + MySQL)
+  - ✅ Pod Ubuntu “EC2 emulator” dans Kubernetes (pour tests)
+
+Non implémenté à date : provider RDS dédié, création d’une vraie EC2 Zimbra, base RDS managée, installation Zimbra end-to-end.
 
 ---
 
@@ -87,6 +121,9 @@ kubectl version --client  # >= 1.28.x
 
 # Helm
 helm version  # >= 3.x
+
+# jq (requis par scripts/setup.sh)
+jq --version
 
 # AWS CLI (pour tests LocalStack)
 aws --version  # >= 2.x
@@ -181,6 +218,9 @@ aws_secret_access_key = test'
 # Appliquer le ProviderConfig
 kubectl apply -f platform/crossplane/provider-config.yaml
 
+# AWS réel (sans LocalStack) : utiliser à la place
+# kubectl apply -f platform/crossplane/provider-config-aws.yaml
+
 # Vérifier
 kubectl get providerconfig
 kubectl get secret aws-creds -n crossplane-system
@@ -196,16 +236,7 @@ kubectl get clusterrole | grep providerconfig
 kubectl get clusterrolebinding | grep provider-aws
 ```
 
-#### 7. Créer le CRD ProviderConfigUsage
-```bash
-# Créer le CRD manquant (workaround pour compatibilité)
-kubectl apply -f platform/rbac/providerconfigusage-crd.yaml
-
-# Vérifier
-kubectl get crd providerconfigusages.aws.upbound.io
-```
-
-#### 8. Déployer l'XRD et la Composition
+#### 7. Déployer l'XRD et les Compositions
 ```bash
 # Créer l'XRD Zimbra
 kubectl apply -f crossplane/xrds/xzimbra.yaml
@@ -213,8 +244,9 @@ kubectl apply -f crossplane/xrds/xzimbra.yaml
 # Vérifier
 kubectl get xrd
 
-# Créer la Composition
-kubectl apply -f crossplane/compositions/zimbra-platform.yaml
+# Créer les Compositions (local + aws)
+kubectl apply -f crossplane/compositions/zimbra-platform-local.yaml
+kubectl apply -f crossplane/compositions/zimbra-platform-aws.yaml
 
 # Vérifier
 kubectl get composition
@@ -226,26 +258,10 @@ kubectl get composition
 
 ### Créer une Instance Zimbra
 
-#### 1. Créer le fichier Claim
-```bash
-# Créer un dossier pour les claims
-mkdir -p claims
+#### 1. Choisir le claim (Local vs AWS)
 
-# Créer le claim
-cat <<YAML > claims/dev-zimbra.yaml
-apiVersion: idp.example.com/v1alpha1
-kind: Zimbra
-metadata:
-  name: dev-zimbra-001
-spec:
-  environment: dev
-  region: us-east-1
-  storageSizeGB: 50
-  databaseStorageGB: 20
-  instanceType: t3.medium
-  enableBackups: true
-YAML
-```
+- **Local** : `claims/dev-zimbra-local.yaml` (sélection via `spec.compositionSelector.matchLabels.env: local-kind`)
+- **AWS** : `claims/dev-zimbra.yaml` (recommandé : définir explicitement `spec.compositionRef.name: zimbra-platform`)
 
 #### 2. Appliquer le Claim
 ```bash
@@ -345,13 +361,19 @@ kubectl apply -f platform/rbac/
 kubectl delete pods -n crossplane-system -l pkg.crossplane.io/provider
 ```
 
-2. **Erreur "ProviderConfigUsage not found"** :
-```bash
-# Vérifier le CRD
-kubectl get crd providerconfigusages.aws.upbound.io
+2. **Erreur liée à `ProviderConfigUsage`** :
 
-# Si absent, créer
-kubectl apply -f platform/rbac/providerconfigusage-crd.yaml
+Ce symptôme indique généralement un **mismatch de versions** Crossplane / provider Upbound ou une installation incomplète.
+
+Actions rapides :
+
+```bash
+# Logs du provider fautif
+kubectl get providers
+kubectl logs -n crossplane-system -l pkg.crossplane.io/provider=provider-aws-s3
+
+# Vérifier les CRDs installés côté provider
+kubectl get crd | grep -i providerconfig
 ```
 
 3. **LocalStack non accessible** :
@@ -398,10 +420,11 @@ export AWS_DEFAULT_REGION=us-east-1
 | Composant | Status | Notes |
 |-----------|--------|-------|
 | Crossplane v1.17.1 | ✅ | Stable |
-| Providers AWS (s3, ec2, iam, rds) | ✅ | HEALTHY |
+| Providers AWS (s3, ec2, iam) | ✅ | HEALTHY |
+| Provider Kubernetes | ✅ | Pour objets K8s (pods/statefulsets/configmaps) |
 | LocalStack | ✅ | Avec persistance |
 | XRD Zimbra | ✅ | API définie |
-| Composition S3+VPC | ✅ | Fonctionne |
+| Compositions (local + aws) | ✅ | 2 compositions disponibles |
 | Claims Zimbra | ✅ | Crée les ressources |
 | RBAC Permissions | ✅ | Corrigées |
 | S3 Buckets | ✅ | SYNCED + READY |
@@ -447,20 +470,18 @@ export AWS_DEFAULT_REGION=us-east-1
 ```
 idp-zimbra-aws/
 ├── README.md                       # Cette documentation
-├── backup/                         # Backups des ressources
-│   ├── composition-backup.yaml
-│   ├── providers-backup.yaml
-│   └── xrd-backup.yaml
 ├── claims/                         # Claims utilisateur
-│   └── dev-zimbra.yaml            # Exemple de claim
+│   ├── dev-zimbra.yaml             # Exemple AWS
+│   └── dev-zimbra-local.yaml       # Exemple Local (compositionSelector)
 ├── crossplane/
 │   ├── compositions/              # Compositions Crossplane
-│   │   └── zimbra-platform.yaml
+│   │   ├── zimbra-platform-aws.yaml
+│   │   └── zimbra-platform-local.yaml
 │   ├── providers/                 # Définitions des providers
 │   │   ├── provider-aws-ec2.yaml
 │   │   ├── provider-aws-iam.yaml
-│   │   ├── provider-aws-rds.yaml
-│   │   └── provider-aws-s3.yaml
+│   │   ├── provider-aws-s3.yaml
+│   │   └── provider-kubernetes.yaml
 │   └── xrds/                     # XRDs (API definitions)
 │       └── xzimbra.yaml
 ├── infrastructure/               # Ressources standalone (test)
@@ -468,16 +489,18 @@ idp-zimbra-aws/
 │   └── vpc.yaml
 ├── platform/
 │   ├── crossplane/
-│   │   └── provider-config.yaml  # Configuration LocalStack
+│   │   ├── aws-secrets.yaml
+│   │   ├── otel-collector-config.yaml
+│   │   ├── provider-config-aws.yaml
+│   │   └── provider-config.yaml  # Configuration LocalStack (Kind + LocalStack)
 │   └── rbac/                     # Permissions RBAC
 │       ├── provider-providerconfig-access.yaml
 │       ├── provider-s3-binding.yaml
 │       ├── provider-ec2-binding.yaml
 │       ├── provider-iam-binding.yaml
-│       ├── provider-rds-binding.yaml
-│       └── providerconfigusage-crd.yaml
 └── scripts/                      # Scripts utilitaires
-    └── setup.sh                  # Setup complet (à créer)
+    ├── setup.sh
+    └── fix-localstack-crossplane.sh
 ```
 
 ---
@@ -491,12 +514,15 @@ Ce projet a nécessité la résolution de multiples challenges :
 1. **Blocage réseau MTN** → Solution : Cloudflare WARP
 2. **Incompatibilité Crossplane v2 mode Pipeline** → Downgrade v1.17.1
 3. **Permissions RBAC manquantes** → Création ClusterRoles manuels
-4. **CRD ProviderConfigUsage absent** → Création manuelle
-5. **Provider-family-aws en conflit** → Utilisation providers modulaires uniquement
+4. **Provider-family-aws en conflit** → Utilisation providers modulaires uniquement
 
 ### Leçons Apprises
 
 - Les providers modulaires Upbound v1.15 ont des incompatibilités avec Crossplane v1.17
-- Le CRD `ProviderConfigUsage` est requis mais absent en v1.17
 - Les permissions RBAC ne sont pas auto-créées par le rbac-manager
-- LocalStack nécessite `s3_use_path_style: true` dans le ProviderCn développement (IAM + RDS + EC2)
+- LocalStack nécessite `s3_use_path_style: true` + `endpoint` dans le `ProviderConfig` (S3/EC2/IAM)
+
+### Sécurité & secrets (important)
+
+- Ne commite jamais de **credentials AWS réelles** ni de **tokens** (ex: SigNoz).
+- Pour l’OpenTelemetry Collector (`platform/crossplane/otel-collector-config.yaml`), le token doit être injecté via **Secret Kubernetes** (voir `QUICKSTART.md`).

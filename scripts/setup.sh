@@ -2,6 +2,13 @@
 
 set -e  # Arrêter en cas d'erreur
 
+# Mode d'installation : local (Kind + LocalStack) ou aws (Kind + AWS réel)
+MODE="${1:-local}"
+if [[ "$MODE" != "local" && "$MODE" != "aws" ]]; then
+    echo "Usage: $0 [local|aws]"
+    exit 1
+fi
+
 # Couleurs pour output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -61,6 +68,12 @@ if ! command -v helm &> /dev/null; then
 fi
 success "Helm $(helm version --short | awk '{print $1}')"
 
+# jq (requis)
+if ! command -v jq &> /dev/null; then
+    error "jq n'est pas installé. Installez jq (ex: sudo apt-get install -y jq)"
+fi
+success "jq $(jq --version)"
+
 # AWS CLI (optionnel pour LocalStack)
 if ! command -v aws &> /dev/null; then
     warning "AWS CLI non installé (optionnel, utile pour tester LocalStack)"
@@ -74,6 +87,12 @@ echo ""
 # ÉTAPE 2 : Démarrage de LocalStack
 # ============================================
 step "[2/10] Démarrage de LocalStack..."
+
+# En mode AWS réel, on ne démarre pas LocalStack
+if [[ "$MODE" == "aws" ]]; then
+    warning "Mode AWS réel : saut du démarrage LocalStack"
+    echo ""
+else
 
 # Vérifier si LocalStack tourne déjà
 if docker ps | grep -q localstack; then
@@ -106,6 +125,7 @@ else
 fi
 
 echo ""
+fi
 
 # ============================================
 # ÉTAPE 3 : Création du cluster Kind
@@ -210,16 +230,24 @@ echo ""
 # ============================================
 step "[6/10] Configuration des secrets AWS..."
 
-if kubectl get secret aws-creds -n crossplane-system &> /dev/null; then
-    warning "Secret aws-creds existe déjà"
-else
-    kubectl create secret generic aws-creds \
-        -n crossplane-system \
-        --from-literal='creds=[default]
+if [[ "$MODE" == "local" ]]; then
+    if kubectl get secret aws-creds -n crossplane-system &> /dev/null; then
+        warning "Secret aws-creds existe déjà"
+    else
+        kubectl create secret generic aws-creds \
+            -n crossplane-system \
+            --from-literal='creds=[default]
 aws_access_key_id = test
 aws_secret_access_key = test' > /dev/null
-    
-    success "Secret aws-creds créé"
+
+        success "Secret aws-creds créé (LocalStack)"
+    fi
+else
+    if kubectl get secret aws-creds -n crossplane-system &> /dev/null; then
+        success "Secret aws-creds trouvé (AWS réel)"
+    else
+        error "Mode AWS réel : le secret aws-creds est requis dans crossplane-system. Crée-le avant de relancer (voir README.md / QUICKSTART.md)."
+    fi
 fi
 
 echo ""
@@ -229,8 +257,13 @@ echo ""
 # ============================================
 step "[7/10] Configuration du ProviderConfig..."
 
-kubectl apply -f platform/crossplane/provider-config.yaml > /dev/null
-success "ProviderConfig appliqué"
+if [[ "$MODE" == "local" ]]; then
+    kubectl apply -f platform/crossplane/provider-config.yaml > /dev/null
+    success "ProviderConfig appliqué (LocalStack)"
+else
+    kubectl apply -f platform/crossplane/provider-config-aws.yaml > /dev/null
+    success "ProviderConfig appliqué (AWS réel)"
+fi
 
 echo ""
 
@@ -260,9 +293,16 @@ step "[9/10] Déploiement XRD et Composition..."
 kubectl apply -f crossplane/xrds/xzimbra.yaml > /dev/null
 success "XRD Zimbra créé"
 
-# Appliquer la Composition
-kubectl apply -f crossplane/compositions/zimbra-platform.yaml > /dev/null
-success "Composition zimbra-platform créée"
+# Appliquer les Compositions
+kubectl apply -f crossplane/compositions/zimbra-platform-local.yaml > /dev/null
+kubectl apply -f crossplane/compositions/zimbra-platform-aws.yaml > /dev/null
+success "Compositions (local + aws) créées"
+
+# ConfigMap OpenTelemetry (utilisée par la composition locale)
+if [[ "$MODE" == "local" ]]; then
+    kubectl apply -f platform/crossplane/otel-collector-config.yaml > /dev/null
+    success "ConfigMap OpenTelemetry appliquée"
+fi
 
 echo ""
 
@@ -292,7 +332,11 @@ echo ""
 echo "📝 Prochaines étapes :"
 echo ""
 echo "1. Créer votre premier environnement Zimbra :"
-echo "   kubectl apply -f claims/dev-zimbra.yaml"
+if [[ "$MODE" == "local" ]]; then
+    echo "   kubectl apply -f claims/dev-zimbra-local.yaml"
+else
+    echo "   kubectl apply -f claims/dev-zimbra.yaml"
+fi
 echo ""
 echo "2. Surveiller la création :"
 echo "   kubectl get zimbra,bucket,vpc,subnet -w"
