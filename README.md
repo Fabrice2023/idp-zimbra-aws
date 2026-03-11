@@ -102,6 +102,55 @@ Cela dépend de la Composition sélectionnée :
 
 Non implémenté à date : provider RDS dédié, création d’une vraie EC2 Zimbra, base RDS managée, installation Zimbra end-to-end.
 
+### Architecture AWS (état actuel / “desired state”)
+
+⚠️ Cette section décrit **ce que la Composition AWS provisionnera** (le “desired state” défini dans `crossplane/compositions/zimbra-platform-aws.yaml`), **pas** un environnement déjà déployé/validé sur AWS.
+
+#### Composants provisionnés par la composition AWS (actuel)
+
+- **S3** : bucket de backups `"<claim>-backup"`
+- **Réseau** : VPC `10.0.0.0/16`, 2 subnets (public `10.0.1.0/24`, privé `10.0.2.0/24`), Internet Gateway, route table publique + route `0.0.0.0/0` + association
+- **IAM (préparation EC2)** : role assumable par EC2, policy d’accès S3 aux buckets `*-backup`, attachment, instance profile
+- **Sécurité** : security groups + règles ingress (ports Zimbra) + règle MySQL 3306 depuis le SG “application” vers le SG “database”
+- **Kubernetes (tests)** : un Pod Ubuntu “EC2 emulator” (outillage réseau/mysql-client), pour valider rapidement la connectivité
+
+#### Non provisionné / à venir
+
+- **EC2 Zimbra réelle** (instance + bootstrap / user-data)
+- **RDS MySQL managé** (DB subnet group, instance, paramètres, snapshots)
+- **Installation Zimbra end-to-end**
+
+#### Schéma (simplifié)
+
+```mermaid
+flowchart TB
+  subgraph AWS["AWS (desired state via Crossplane)"]
+    VPC["VPC 10.0.0.0/16"]
+    SubPub["Subnet public 10.0.1.0/24"]
+    SubPriv["Subnet privé 10.0.2.0/24"]
+    IGW["Internet Gateway"]
+    RT["Route table (public)"]
+    Route000["Route 0.0.0.0/0"]
+    S3["S3 bucket: <claim>-backup"]
+    IAM["IAM: Role + Policy S3 + InstanceProfile"]
+    SGApp["SG application (ports Zimbra)"]
+    SGDB["SG database (MySQL 3306)"]
+  end
+
+  subgraph K8S["Kubernetes (tests)"]
+    Pod["Pod Ubuntu: 'EC2 emulator'"]
+  end
+
+  VPC --> SubPub
+  VPC --> SubPriv
+  VPC --> SGApp
+  VPC --> SGDB
+  IGW --> RT --> Route000
+  Pod -. tests .-> SGApp
+  IAM -. future EC2 .-> SGApp
+  S3 --- IAM
+```
+
 ---
 
 ## 🚀 Installation et Configuration
