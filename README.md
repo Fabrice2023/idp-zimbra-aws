@@ -122,6 +122,22 @@ Non implémenté à date : provider RDS dédié, création d’une vraie EC2 Zim
 
 #### Schéma (simplifié)
 
+Si ton hébergeur git ne rend pas Mermaid, voici une version ASCII :
+
+```
+AWS (desired state)
+  VPC 10.0.0.0/16
+   ├─ Subnet public 10.0.1.0/24 ── RouteTable(public) ── 0.0.0.0/0 ── IGW
+   └─ Subnet privé  10.0.2.0/24
+
+  S3 bucket: <claim>-backup
+  IAM: Role + Policy S3 + InstanceProfile (préparation EC2)
+  SG application (ports Zimbra) ──(source)──> SG database (MySQL 3306)
+
+Kubernetes (tests)
+  Pod Ubuntu "EC2 emulator"  -- tests -->  SG application
+```
+
 ```mermaid
 flowchart TB
   subgraph AWS["AWS (desired state via Crossplane)"]
