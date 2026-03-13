@@ -189,8 +189,7 @@ spec:
                 name: otel-collector-daemonset
                 namespace: default
 
-    # --- RESSOURCE 6 : CLUSTERROLE DAEMONSET ---
-    # ClusterRole est cluster-scoped : pas de namespace
+# --- RESSOURCE 6 : CLUSTERROLE DAEMONSET ---
     - name: otel-daemonset-clusterrole
       base:
         apiVersion: kubernetes.crossplane.io/v1alpha1
@@ -208,13 +207,18 @@ spec:
                 - apiGroups: [""]
                   resources:
                     - nodes
-                    - nodes/proxy
-                    - nodes/stats
                     - pods
                     - endpoints
                     - services
                     - namespaces
                   verbs: ["get", "list", "watch"]
+                # Subresources kubelet — doivent être dans une règle séparée
+                - apiGroups: [""]
+                  resources:
+                    - nodes/stats
+                    - nodes/proxy
+                    - nodes/metrics
+                  verbs: ["get"]
                 - apiGroups: ["apps"]
                   resources: ["replicasets"]
                   verbs: ["get", "list", "watch"]
@@ -295,7 +299,7 @@ spec:
                         - /var/log/pods/*/*/*.log
                       exclude:
                         - /var/log/pods/*/otel-collector*/*.log
-                      start_at: beginning
+                      start_at: end
                       include_file_path: true
                       include_file_name: false
                       operators:
@@ -360,7 +364,7 @@ spec:
 
                   exporters:
                     otlp:
-                      endpoint: "ingest.signoz.io:443"
+                      endpoint: "ingest.eu.signoz.cloud:443"
                       tls:
                         insecure: false
                       headers:
