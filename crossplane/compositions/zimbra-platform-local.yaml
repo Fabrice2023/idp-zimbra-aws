@@ -118,13 +118,11 @@ spec:
               metadata:
                 namespace: default
               spec:
-                # 1. Déclaration du volume pour la configuration OTel
                 volumes:
                   - name: otel-config-vol
                     configMap:
                       name: otel-collector-config
                 containers:
-                  # Container principal : Ubuntu
                   - name: ubuntu
                     image: ubuntu:22.04
                     command: ["/bin/bash", "-c", "apt-get update && apt-get install -y mysql-client awscli && sleep infinity"]
@@ -139,8 +137,6 @@ spec:
                         value: "test"
                       - name: AWS_DEFAULT_REGION
                         value: "us-east-1"
-                  
-                  # 2. Container Sidecar : OpenTelemetry Collector
                   - name: otel-collector
                     image: otel/opentelemetry-collector-contrib:0.147.0
                     args: ["--config=/etc/otelcol/config.yaml"]
@@ -170,3 +166,289 @@ spec:
         - fromFieldPath: metadata.name
           toFieldPath: spec.forProvider.manifest.spec.containers[1].env[1].value
           transforms: [{type: string, string: {fmt: "%s-mysql:3306"}}]
+
+    # ============================================================
+    # OBSERVABILITÉ — DAEMONSET OTEL (couche infrastructure)
+    # Collecte : métriques nœud, métriques pods K8s, logs containers
+    # Complète le sidecar qui couvre uniquement MySQL applicatif
+    # ============================================================
+
+    # --- RESSOURCE 5 : SERVICEACCOUNT DAEMONSET ---
+    - name: otel-daemonset-serviceaccount
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        spec:
+          providerConfigRef:
+            name: kubernetes-config
+          forProvider:
+            manifest:
+              apiVersion: v1
+              kind: ServiceAccount
+              metadata:
+                name: otel-collector-daemonset
+                namespace: default
+
+    # --- RESSOURCE 6 : CLUSTERROLE DAEMONSET ---
+    # ClusterRole est cluster-scoped : pas de namespace
+    - name: otel-daemonset-clusterrole
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        spec:
+          providerConfigRef:
+            name: kubernetes-config
+          forProvider:
+            manifest:
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRole
+              metadata:
+                name: otel-collector-daemonset
+              rules:
+                - apiGroups: [""]
+                  resources:
+                    - nodes
+                    - nodes/proxy
+                    - nodes/stats
+                    - pods
+                    - endpoints
+                    - services
+                    - namespaces
+                  verbs: ["get", "list", "watch"]
+                - apiGroups: ["apps"]
+                  resources: ["replicasets"]
+                  verbs: ["get", "list", "watch"]
+
+    # --- RESSOURCE 7 : CLUSTERROLEBINDING DAEMONSET ---
+    - name: otel-daemonset-clusterrolebinding
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        spec:
+          providerConfigRef:
+            name: kubernetes-config
+          forProvider:
+            manifest:
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRoleBinding
+              metadata:
+                name: otel-collector-daemonset
+              subjects:
+                - kind: ServiceAccount
+                  name: otel-collector-daemonset
+                  namespace: default
+              roleRef:
+                kind: ClusterRole
+                name: otel-collector-daemonset
+                apiGroup: rbac.authorization.k8s.io
+
+    # --- RESSOURCE 8 : CONFIGMAP DAEMONSET ---
+    - name: otel-daemonset-configmap
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        spec:
+          providerConfigRef:
+            name: kubernetes-config
+          forProvider:
+            manifest:
+              apiVersion: v1
+              kind: ConfigMap
+              metadata:
+                name: otel-collector-daemonset-config
+                namespace: default
+              data:
+                config.yaml: |
+                  receivers:
+                    hostmetrics:
+                      collection_interval: 30s
+                      root_path: /hostfs
+                      scrapers:
+                        cpu: {}
+                        disk: {}
+                        filesystem:
+                          exclude_mount_points:
+                            mount_points: ["/dev/*", "/proc/*", "/sys/*", "/run/k3s/containerd/*"]
+                            match_type: regexp
+                        load: {}
+                        memory: {}
+                        network: {}
+                        paging: {}
+                        process:
+                          mute_process_name_error: true
+                          mute_process_exe_error: true
+                          mute_process_io_error: true
+                          mute_process_user_error: true
+
+                    kubeletstats:
+                      collection_interval: 30s
+                      auth_type: serviceAccount
+                      endpoint: "https://${env:K8S_NODE_NAME}:10250"
+                      insecure_skip_verify: true
+                      metric_groups:
+                        - node
+                        - pod
+                        - container
+
+                    filelog:
+                      include:
+                        - /var/log/pods/*/*/*.log
+                      exclude:
+                        - /var/log/pods/*/otel-collector*/*.log
+                      start_at: beginning
+                      include_file_path: true
+                      include_file_name: false
+                      operators:
+                        - type: router
+                          id: get-format
+                          routes:
+                            - output: parser-docker
+                              expr: 'body matches "^\\{"'
+                            - output: parser-crio
+                              expr: 'body matches "^[^ Z]+Z"'
+                        - type: json_parser
+                          id: parser-docker
+                          output: extract-metadata
+                          timestamp:
+                            parse_from: attributes.time
+                            layout: "%Y-%m-%dT%H:%M:%S.%LZ"
+                        - type: regex_parser
+                          id: parser-crio
+                          regex: '^(?P<time>[^ Z]+Z) (?P<stream>stdout|stderr) (?P<logtag>[^ ]*) ?(?P<log>.*)$'
+                          output: extract-metadata
+                          timestamp:
+                            parse_from: attributes.time
+                            layout: "%Y-%m-%dT%H:%M:%S.%LZ"
+                        - type: regex_parser
+                          id: extract-metadata
+                          regex: '^.*\/(?P<namespace>[^_]+)_(?P<pod_name>[^_]+)_[^\/]+\/(?P<container_name>[^\/]+)\/[0-9]+\.log$'
+                          parse_from: attributes["log.file.path"]
+                          cache:
+                            size: 128
+                        - type: move
+                          from: attributes.log
+                          to: body
+                        - type: move
+                          from: attributes.stream
+                          to: attributes["log.iostream"]
+                        - type: move
+                          from: attributes.container_name
+                          to: resource["k8s.container.name"]
+                        - type: move
+                          from: attributes.namespace
+                          to: resource["k8s.namespace.name"]
+                        - type: move
+                          from: attributes.pod_name
+                          to: resource["k8s.pod.name"]
+
+                  processors:
+                    batch:
+                      send_batch_size: 1000
+                      timeout: 10s
+                    resourcedetection:
+                      detectors: [env, system]
+                      timeout: 5s
+                    resource:
+                      attributes:
+                        - key: k8s.node.name
+                          from_attribute: k8s.node.name
+                          action: insert
+                    memory_limiter:
+                      check_interval: 5s
+                      limit_mib: 256
+                      spike_limit_mib: 64
+
+                  exporters:
+                    otlp:
+                      endpoint: "ingest.signoz.io:443"
+                      tls:
+                        insecure: false
+                      headers:
+                        "signoz-ingestion-key": "${env:SIGNOZ_INGESTION_KEY}"
+
+                  service:
+                    pipelines:
+                      metrics:
+                        receivers: [hostmetrics, kubeletstats]
+                        processors: [memory_limiter, resourcedetection, resource, batch]
+                        exporters: [otlp]
+                      logs:
+                        receivers: [filelog]
+                        processors: [memory_limiter, resourcedetection, resource, batch]
+                        exporters: [otlp]
+
+    # --- RESSOURCE 9 : DAEMONSET OTEL ---
+    - name: otel-daemonset
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        spec:
+          providerConfigRef:
+            name: kubernetes-config
+          forProvider:
+            manifest:
+              apiVersion: apps/v1
+              kind: DaemonSet
+              metadata:
+                name: otel-collector-daemonset
+                namespace: default
+                labels:
+                  app: otel-collector
+                  tier: observability
+              spec:
+                selector:
+                  matchLabels:
+                    app: otel-collector
+                    tier: observability
+                template:
+                  metadata:
+                    labels:
+                      app: otel-collector
+                      tier: observability
+                  spec:
+                    serviceAccountName: otel-collector-daemonset
+                    tolerations:
+                      - operator: Exists
+                        effect: NoSchedule
+                    containers:
+                      - name: otel-collector
+                        image: otel/opentelemetry-collector-contrib:0.147.0
+                        args: ["--config=/etc/otelcol/config.yaml"]
+                        env:
+                          - name: SIGNOZ_INGESTION_KEY
+                            valueFrom:
+                              secretKeyRef:
+                                name: signoz-ingestion-key
+                                key: key
+                          - name: K8S_NODE_NAME
+                            valueFrom:
+                              fieldRef:
+                                fieldPath: spec.nodeName
+                        resources:
+                          requests:
+                            cpu: "100m"
+                            memory: "128Mi"
+                          limits:
+                            cpu: "250m"
+                            memory: "256Mi"
+                        volumeMounts:
+                          - name: config-vol
+                            mountPath: /etc/otelcol/config.yaml
+                            subPath: config.yaml
+                          - name: varlogpods
+                            mountPath: /var/log/pods
+                            readOnly: true
+                          - name: hostfs
+                            mountPath: /hostfs
+                            readOnly: true
+                            mountPropagation: HostToContainer
+                    volumes:
+                      - name: config-vol
+                        configMap:
+                          name: otel-collector-daemonset-config
+                      - name: varlogpods
+                        hostPath:
+                          path: /var/log/pods
+                      - name: hostfs
+                        hostPath:
+                          path: /

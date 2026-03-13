@@ -1,0 +1,262 @@
+# ============================================
+# OTEL COLLECTOR — DAEMONSET
+# Collecte : logs containers, métriques nœud,
+# métriques K8s pods (tous les nœuds kind)
+# ============================================
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-collector-daemonset
+  namespace: default
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-collector-daemonset
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/proxy
+      - nodes/stats
+      - pods
+      - endpoints
+      - services
+      - namespaces
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-collector-daemonset
+subjects:
+  - kind: ServiceAccount
+    name: otel-collector-daemonset
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: otel-collector-daemonset
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-daemonset-config
+  namespace: default
+data:
+  config.yaml: |
+    receivers:
+
+      # Métriques système du nœud (CPU, RAM, disk, network)
+      hostmetrics:
+        collection_interval: 30s
+        root_path: /hostfs
+        scrapers:
+          cpu: {}
+          disk: {}
+          filesystem:
+            exclude_mount_points:
+              mount_points: ["/dev/*", "/proc/*", "/sys/*", "/run/k3s/containerd/*"]
+              match_type: regexp
+          load: {}
+          memory: {}
+          network: {}
+          paging: {}
+          process:
+            mute_process_name_error: true
+            mute_process_exe_error: true
+            mute_process_io_error: true
+            mute_process_user_error: true
+
+      # Métriques des pods K8s via kubelet
+      kubeletstats:
+        collection_interval: 30s
+        auth_type: serviceAccount
+        endpoint: "https://${env:K8S_NODE_NAME}:10250"
+        insecure_skip_verify: true
+        metric_groups:
+          - node
+          - pod
+          - container
+
+      # Logs de tous les containers du nœud
+      filelog:
+        include:
+          - /var/log/pods/*/*/*.log
+        exclude:
+          - /var/log/pods/*/otel-collector*/*.log
+        start_at: beginning
+        include_file_path: true
+        include_file_name: false
+        operators:
+          # Parser les logs Docker/containerd
+          - type: router
+            id: get-format
+            routes:
+              - output: parser-docker
+                expr: 'body matches "^\\{"'
+              - output: parser-crio
+                expr: 'body matches "^[^ Z]+Z"'
+          - type: json_parser
+            id: parser-docker
+            output: extract-metadata
+            timestamp:
+              parse_from: attributes.time
+              layout: "%Y-%m-%dT%H:%M:%S.%LZ"
+          - type: regex_parser
+            id: parser-crio
+            regex: '^(?P<time>[^ Z]+Z) (?P<stream>stdout|stderr) (?P<logtag>[^ ]*) ?(?P<log>.*)$'
+            output: extract-metadata
+            timestamp:
+              parse_from: attributes.time
+              layout: "%Y-%m-%dT%H:%M:%S.%LZ"
+          # Extraire namespace, pod, container depuis le path
+          - type: regex_parser
+            id: extract-metadata
+            regex: '^.*\/(?P<namespace>[^_]+)_(?P<pod_name>[^_]+)_[^\/]+\/(?P<container_name>[^\/]+)\/[0-9]+\.log$'
+            parse_from: attributes["log.file.path"]
+            cache:
+              size: 128
+          - type: move
+            from: attributes.log
+            to: body
+          - type: move
+            from: attributes.stream
+            to: attributes["log.iostream"]
+          - type: move
+            from: attributes.container_name
+            to: resource["k8s.container.name"]
+          - type: move
+            from: attributes.namespace
+            to: resource["k8s.namespace.name"]
+          - type: move
+            from: attributes.pod_name
+            to: resource["k8s.pod.name"]
+
+    processors:
+      batch:
+        send_batch_size: 1000
+        timeout: 10s
+
+      # Enrichir avec les métadonnées K8s
+      resourcedetection:
+        detectors: [env, system]
+        timeout: 5s
+
+      # Ajouter le nom du nœud
+      resource:
+        attributes:
+          - key: k8s.node.name
+            from_attribute: k8s.node.name
+            action: insert
+
+      memory_limiter:
+        check_interval: 5s
+        limit_mib: 256
+        spike_limit_mib: 64
+
+    exporters:
+      otlp:
+        endpoint: "ingest.signoz.io:443"
+        tls:
+          insecure: false
+        headers:
+          "signoz-ingestion-key": "${env:SIGNOZ_INGESTION_KEY}"
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [hostmetrics, kubeletstats]
+          processors: [memory_limiter, resourcedetection, resource, batch]
+          exporters: [otlp]
+        logs:
+          receivers: [filelog]
+          processors: [memory_limiter, resourcedetection, resource, batch]
+          exporters: [otlp]
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-collector-daemonset
+  namespace: default
+  labels:
+    app: otel-collector
+    tier: observability
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector
+      tier: observability
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+        tier: observability
+    spec:
+      serviceAccountName: otel-collector-daemonset
+
+      # Accès au système de fichiers hôte
+      hostNetwork: false
+      hostPID: false
+
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.147.0
+          args: ["--config=/etc/otelcol/config.yaml"]
+
+          env:
+            - name: SIGNOZ_INGESTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: signoz-ingestion-key
+                  key: key
+            - name: K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+
+          volumeMounts:
+            - name: config-vol
+              mountPath: /etc/otelcol/config.yaml
+              subPath: config.yaml
+            # Logs des containers
+            - name: varlogpods
+              mountPath: /var/log/pods
+              readOnly: true
+            # Système de fichiers hôte pour hostMetrics
+            - name: hostfs
+              mountPath: /hostfs
+              readOnly: true
+              mountPropagation: HostToContainer
+
+      volumes:
+        - name: config-vol
+          configMap:
+            name: otel-collector-daemonset-config
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods
+        - name: hostfs
+          hostPath:
+            path: /

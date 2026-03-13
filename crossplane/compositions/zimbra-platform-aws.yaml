@@ -924,3 +924,113 @@ spec:
     - type: FromCompositeFieldPath
       fromFieldPath: spec.environment
       toFieldPath: spec.forProvider.tags.Environment
+# ============================================
+# RDS MYSQL (ZIMBRA DATABASE)
+# ============================================
+- name: zimbra-rds-mysql
+  base:
+    apiVersion: rds.aws.upbound.io/v1beta1
+    kind: Instance
+    spec:
+      deletionPolicy: Delete
+      forProvider:
+        region: us-east-1
+        engine: mysql
+        engineVersion: "8.0"
+        instanceClass: db.t3.medium
+        allocatedStorage: 20
+        dbName: zimbra
+        username: zimbra
+        autoGeneratePassword: true
+        passwordSecretRef:
+          namespace: crossplane-system
+          key: password
+        skipFinalSnapshot: true
+        publiclyAccessible: false
+        dbSubnetGroupNameSelector:
+          matchControllerRef: true
+        vpcSecurityGroupIdSelector:
+          matchControllerRef: true
+          matchLabels:
+            app: zimbra
+            tier: database
+        tags: {}
+      providerConfigRef:
+        name: default
+  patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: metadata.name
+      transforms:
+        - type: string
+          string:
+            fmt: "%s-rds"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.providerConfigRef.name
+      toFieldPath: spec.providerConfigRef.name
+      policy:
+        fromFieldPath: Optional
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.region
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: spec.forProvider.passwordSecretRef.name
+      transforms:
+        - type: string
+          string:
+            fmt: "%s-rds-password"
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: spec.forProvider.tags.Name
+      transforms:
+        - type: string
+          string:
+            fmt: "%s-rds"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.environment
+      toFieldPath: spec.forProvider.tags.Environment
+
+# ============================================
+# RDS SUBNET GROUP (REQUIRED BY RDS)
+# ============================================
+- name: zimbra-rds-subnet-group
+  base:
+    apiVersion: rds.aws.upbound.io/v1beta1
+    kind: SubnetGroup
+    spec:
+      deletionPolicy: Delete
+      forProvider:
+        region: us-east-1
+        description: Subnet group for Zimbra RDS MySQL
+        subnetIdSelector:
+          matchControllerRef: true
+        tags: {}
+      providerConfigRef:
+        name: default
+  patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: metadata.name
+      transforms:
+        - type: string
+          string:
+            fmt: "%s-rds-subnet-group"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.providerConfigRef.name
+      toFieldPath: spec.providerConfigRef.name
+      policy:
+        fromFieldPath: Optional
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.region
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: spec.forProvider.tags.Name
+      transforms:
+        - type: string
+          string:
+            fmt: "%s-rds-subnet-group"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.environment
+      toFieldPath: spec.forProvider.tags.Environment
