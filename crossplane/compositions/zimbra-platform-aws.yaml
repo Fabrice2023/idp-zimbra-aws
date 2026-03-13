@@ -866,45 +866,61 @@ spec:
           fromFieldPath: spec.region
           toFieldPath: spec.forProvider.region
 # ============================================
-    # EC2 EMULATOR (KUBERNETES POD)
-    # ============================================
-    - name: zimbra-ubuntu-emulator
-      base:
-        apiVersion: kubernetes.upbound.io/v1alpha1
-        kind: Object
-        spec:
-          forProvider:
-            manifest:
-              apiVersion: v1
-              kind: Pod
-              metadata:
-                namespace: default
-                labels:
-                  app: zimbra
-                  tier: application
-              spec:
-                containers:
-                  - name: ubuntu-server
-                    image: ubuntu:22.04
-                    # Script pour garder le pod vivant et installer les outils de test
-                    command: ["/bin/bash", "-c"]
-                    args:
-                      - |
-                        apt-get update && apt-get install -y mysql-client curl iputils-ping dnsutils;
-                        echo "EC2 Emulator Ready";
-                        sleep infinity
-                    env:
-                      - name: MYSQL_HOST
-                        value: "zimbra-mysql"
-                    resources:
-                      requests:
-                        cpu: "250m"
-                        memory: "512Mi"
-      patches:
-        - type: FromCompositeFieldPath
-          fromFieldPath: metadata.name
-          toFieldPath: spec.forProvider.manifest.metadata.name
-          transforms:
-            - type: string
-              string:
-                fmt: "%s-ubuntu-server"
+# EC2 INSTANCE (ZIMBRA SERVER)
+# ============================================
+- name: zimbra-ec2-instance
+  base:
+    apiVersion: ec2.aws.upbound.io/v1beta1
+    kind: Instance
+    spec:
+      deletionPolicy: Delete
+      forProvider:
+        region: us-east-1
+        ami: ami-0c02fb55956c7d316  # Ubuntu 22.04 LTS us-east-1
+        instanceType: t3.medium
+        subnetIdSelector:
+          matchControllerRef: true
+          matchLabels:
+            subnet-type: public
+        vpcSecurityGroupIdSelector:
+          matchControllerRef: true
+          matchLabels:
+            app: zimbra
+            tier: application
+        iamInstanceProfileSelector:
+          matchControllerRef: true
+          matchLabels:
+            app: zimbra
+        userData: |
+          #!/bin/bash
+          apt-get update
+          apt-get install -y mysql-client awscli
+        tags: {}
+      providerConfigRef:
+        name: default
+  patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: metadata.name
+      transforms:
+        - type: string
+          string:
+            fmt: "%s-ec2"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.providerConfigRef.name
+      toFieldPath: spec.providerConfigRef.name
+      policy:
+        fromFieldPath: Optional
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.region
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: spec.forProvider.tags.Name
+      transforms:
+        - type: string
+          string:
+            fmt: "%s-ec2"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.environment
+      toFieldPath: spec.forProvider.tags.Environment
